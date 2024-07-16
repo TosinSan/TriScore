@@ -1,6 +1,7 @@
 from midiutil.MidiFile import MIDIFile
 import numpy as np
 
+
 def f2n(f):
     f = max(f, 1)
     return int(12 * (np.log(f / 220) / (np.log(2))) + 57)
@@ -15,27 +16,44 @@ def noise_filter(raw_data, freq_list, level):
 
 
 def frames_to_notes(data, freq_list, tstep, level=0.5):
-    note_frames = []
+    note_frames = {}
     for i in range(len(data)):
         frame_data = noise_filter(data[i], freq_list, level)
         for note in frame_data:
             n_pitch = f2n(note[1])
             n_vol = int(note[0]*100)
-            n_time = i*tstep
-            note_frames.append([n_pitch, n_time, 1*tstep, n_vol])
-    return note_frames
+            n_time = i
+            try:
+                note_frames[n_pitch].append((n_time, n_vol))
+            except KeyError:
+                note_frames[n_pitch] = [(n_time, n_vol)]
+    notes = smooth(note_frames, tstep, 10)
+    return notes
+
+# Utilizing the Overlapping Note Ansatz:
+def smooth(note_book, tstep, sn):
+    notes = []
+    for pitch in note_book:
+        stnote = note_book[pitch][0]
+        for i in range(len(note_book[pitch]) - 1):
+            if (note_book[pitch][i+1][0] - note_book[pitch][i][0]) > sn \
+                    or sn < (note_book[pitch][i][1] - note_book[pitch][i + 1][1]):
+                notes.append((pitch, stnote[0], note_book[pitch][i][0] - stnote[0], stnote[1]))
+                stnote = note_book[pitch][i+1]
+        notes.append((pitch, stnote[0]*tstep, (note_book[pitch][-1][0] - stnote[0])*tstep, stnote[1]))
+    return notes
 
 
-def raw_transcribe(data, fs, freq_axis, f_name):
+def raw_transcribe(data, fts, freq_axis, f_name):
 
     mfile = MIDIFile()
     track = 0
     time = 0    # start at the beginning
     mfile.addTrackName(track, time, "Sample Track")
-    mfile.addTempo(track, time, 1)
+    mfile.addTempo(track, time, 60)
     mfile.addProgramChange(0, 0, 0, 81)
 
-    pdata = frames_to_notes(data, freq_axis, 1/fs)
+    pdata = frames_to_notes(data, freq_axis, fts)
     channel = 0
     for note in pdata:
         mfile.addNote(track, channel, *note)

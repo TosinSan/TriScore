@@ -117,10 +117,10 @@ try:  # some mono Audio doesn't store bits in arrays, so .shape doesn't work
     for channel in raw.shape[1]:
         analysis(channel, fss)
 except IndexError:
-    analysis(raw, fss, fss//10, 200)
+    # analysis(raw, fss, fss//10, 200)
     # print(fss)
     raw_ = audio(raw, fss, 1000, 200, True)
-    raw_transcribe(raw_.ft_split[0:1], raw_.fs, raw_.axis("fr"), "raw_")
+    raw_transcribe(raw_.ft_split[0:10000], raw_.fts, raw_.axis("fr"), "raw_")
     # plt.specgram(raw, Fs=fss)
     # plt.show()
 
