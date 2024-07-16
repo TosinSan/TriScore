@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io.wavfile import read, write
 from numpy.fft import fft, ifft, fftshift
+from MidiCreator import raw_transcribe
 from playsound import playsound
 from graphics import *
 import subprocess
@@ -25,7 +26,7 @@ def spect_plot(ift_val, ift_freq, t_step):
 
 
 class audio:
-    def __init__(self, data, rate, fw=None, st=None):
+    def __init__(self, data, rate, fw=None, st=None, norm=False):
         self.data = data  # raw data
         self.rate = rate  # impressions per second
         self.ts = 1/rate  # time step
@@ -41,7 +42,7 @@ class audio:
 
         if fw is not None and st is not None:
             self.slice(self.fw, self.st)
-            self.ft_slice(self.fw, self.st)
+            self.ft_slice(self.fw, self.st, norm)
             self.fw_fs = self.rate / self.fw
         else:
             self.split = None
@@ -70,13 +71,18 @@ class audio:
         for i in range(t_steps):
             self.split.append(self.data[step:frame_w + step])
 
-    def ft_slice(self, frame_w, step):
+    def ft_slice(self, frame_w, step, norm):
         t_steps = (self.count - frame_w) // step + 1
         self.ft_split = []
         for i in range(t_steps):
-            self.ft_split.append(fft(self.data[i*step:frame_w + i*step]))
+            self.ft_split.append(fft(self.data[i*step:frame_w + i*step])[:(self.fw//2 + 1)])
             # print(self.axis("f"))
             # print(self.axis("f")[np.abs(self.ft_split[i])[:self.count//2].argmax()])
+        if norm:
+            self.ft_split = np.abs(self.ft_split)
+            peak = max(max(spec_set) for spec_set in self.ft_split)
+            self.ft_split = self.ft_split / peak
+
 
 
 def f_plot(time, data, freq, bfrange):
@@ -102,17 +108,19 @@ def analysis(data, rate, frame_w=None, frame_step=None):
     f_plot(a_file.axis("t"), a_file.data, a_file.axis("f"), a_file.frange)
 
 
+# playsound(r"C:/Users/Tosin/Documents/TriScore/Input_Audio/sine.wav")
 # subprocess.call(['ffmpeg', '-i', 'filename.mp3', 'filename.wav'])
-fss, raw = read("sine.wav")
+fss, raw = read("Input_Audio/sine.wav")
 # raw = raw[0:1000]  # To test on a smaller sample
 try:  # some mono Audio doesn't store bits in arrays, so .shape doesn't work
     print(f"number of channels = {raw.shape[1]}")
     for channel in raw.shape[1]:
         analysis(channel, fss)
-
 except IndexError:
     analysis(raw, fss, fss//10, 200)
+    # print(fss)
+    raw_ = audio(raw, fss, 1000, 200, True)
+    raw_transcribe(raw_.ft_split[0:1], raw_.fs, raw_.axis("fr"), "raw_")
     # plt.specgram(raw, Fs=fss)
     # plt.show()
 
-# playsound("C:/Users/Tosin/Documents/TriScore/sine8000hz.wav")
